@@ -1,0 +1,97 @@
+version: "3.7"
+
+services:
+
+  sqlserverdb:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name : sqlserverdb
+    restart: always
+    environment:
+      - SA_PASSWORD=Excel-ASP@2022
+      - ACCEPT_EULA=Y
+    ports:
+      - "1437:1433"
+    volumes:
+      - ipd_apps_data:/var/opt/mssql
+    networks:
+      - ipd-network
+  ipd-api:
+    image: arcapps/ipd-api:v0.0.1
+    restart: always
+    environment:
+       DB_SERVER : "34.125.136.242"
+       DB_PORT : "1437"
+       DB_USER : "SA"
+       PASSWORD : "Excel-ASP@2022"
+       DATABASE_NAME : "CMIS.IPD"
+       ASPNETCORE_ENVIRONMENT: Production
+    ports:
+       - "8032:80"
+    depends_on:
+       - sqlserverdb
+    networks:
+       - ipd-network
+  
+  ipd-web:
+    image: arcapps/ipd-web:v0.0.1
+    restart: always
+    environment:
+       ASPNETCORE_ENVIRONMENT: Production
+    ports:
+      - "8033:80"
+    networks:
+      - traefik-public
+      - ipd-network
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.docker.network=traefik-public"
+        - "traefik.enable=true"
+        - "traefik.constraint-label=traefik-public"
+        - "traefik.http.routers.ipdapp.rule=Host(`${SITE?Variable SITE not set}`)"
+        - "traefik.http.routers.ipdapp.entrypoints=http"
+        - "traefik.http.routers.ipdapp.middlewares=https-redirect"
+        - "traefik.http.routers.ipdapp-https.rule=Host(`${SITE?Variable SITE not set}`)"
+        - "traefik.http.routers.ipdapp-https.entrypoints=https"
+        - "traefik.http.routers.ipdapp-https.tls=true"
+        - "traefik.http.routers.ipdapp-https.tls.certresolver=le"
+        - "traefik.http.services.ipdapp.loadbalancer.server.port=80"
+  ipd-admin:
+    image: arcapps/ipd-admin:Dev0.0.1
+    restart: always
+    environment:
+       DB_SERVER : "34.125.136.242"
+       DB_PORT : "1437"
+       DB_USER : "SA"
+       PASSWORD : "Excel-ASP@2022"
+       DATABASE_NAME : "CMIS.IPD"
+       ASPNETCORE_ENVIRONMENT: Production
+    ports:
+      - "8034:80"
+    networks:
+      - traefik-public
+      - ipd-network
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.docker.network=traefik-public"
+        - "traefik.enable=true"
+        - "traefik.constraint-label=traefik-public"
+        - "traefik.http.routers.ipdapp.rule=Host(`${SITE_ADMIN?Variable SITE_ADMIN not set}`)"
+        - "traefik.http.routers.ipdapp.entrypoints=http"
+        - "traefik.http.routers.ipdapp.middlewares=https-redirect"
+        - "traefik.http.routers.ipdapp-https.rule=Host(`${SITE_ADMIN?Variable SITE_ADMIN not set}`)"
+        - "traefik.http.routers.ipdapp-https.entrypoints=https"
+        - "traefik.http.routers.ipdapp-https.tls=true"
+        - "traefik.http.routers.ipdapp-https.tls.certresolver=le"
+        - "traefik.http.services.ipdapp.loadbalancer.server.port=80"
+networks:
+  traefik-public:
+    external: true
+  ipd-network:
+    name: ipd-network
+    attachable: true
+volumes:
+  ipd_apps_data:
